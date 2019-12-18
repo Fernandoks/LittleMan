@@ -1,0 +1,6 @@
+main.c:269:6:StartDefaultTask	8	static
+main.c:287:6:Task2Init	8	static
+main.c:152:6:SystemClock_Config	96	static
+main.c:73:5:main	80	static
+main.c:306:6:HAL_TIM_PeriodElapsedCallback	0	static
+main.c:323:6:Error_Handler	0	static
