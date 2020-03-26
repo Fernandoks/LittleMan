@@ -37,6 +37,9 @@ default.size.stdout \
 OBJDUMP_LIST += \
 LittleMan2_IT.list \
 
+OBJCOPY_BIN += \
+LittleMan2_IT.bin \
+
 
 # All Target
 all: LittleMan2_IT.elf secondary-outputs
@@ -57,12 +60,17 @@ LittleMan2_IT.list: $(EXECUTABLES)
 	@echo 'Finished building: $@'
 	@echo ' '
 
+LittleMan2_IT.bin: $(EXECUTABLES)
+	arm-none-eabi-objcopy  -O binary $(EXECUTABLES) "LittleMan2_IT.bin"
+	@echo 'Finished building: $@'
+	@echo ' '
+
 # Other Targets
 clean:
 	-$(RM) *
 	-@echo ' '
 
-secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST)
+secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST) $(OBJCOPY_BIN)
 
 .PHONY: all clean dependents
 .SECONDARY:

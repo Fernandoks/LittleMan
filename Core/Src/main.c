@@ -25,6 +25,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -76,7 +77,7 @@ osMessageQId ADCQueue;
 
 volatile uint16_t ADCValue = 0;
 
-char usart_buffer[50] = "START";
+uint8_t usart_buffer[50] = "START";
 
 /* USER CODE END PV */
 
@@ -94,6 +95,7 @@ void Task2Init(void const * argument);
  */
 void TaskUARTProcessInit(void const * argument);
 void TaskDisplayInit(void const * argument);
+int _write(int file, char *ptr, int len);
 
 /*
  * General Functions definitions
@@ -104,8 +106,6 @@ void uart_send(uint8_t *data);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
 
 /**
   * @brief  The application entry point.
@@ -155,6 +155,7 @@ int main(void)
   /* Wait a little */
   HAL_Delay(1000);
 
+  printf("SVW TEST");
 
   /* USER CODE END 2 */
 
@@ -172,10 +173,8 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
-  osMessageQDef(adcqueue, 16, uint16_t);
+  osMessageQDef(adcqueue, 10, uint16_t);
   ADCQueue = osMessageCreate (osMessageQ(adcqueue), NULL);
-
-
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -198,7 +197,6 @@ int main(void)
   osThreadDef(TaskDisplay, TaskDisplayInit, osPriorityNormal, 0, 128);
   TaskDisplayHandler = osThreadCreate(osThread(TaskDisplay), NULL);
 
-  HAL_ADC_Start_IT(&hadc1);
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -217,6 +215,13 @@ int main(void)
   /* USER CODE END 3 */
 }
 
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+
 /**
   * @brief System Clock Configuration
   * @retval None
@@ -229,20 +234,25 @@ void SystemClock_Config(void)
   /** Configure the main internal regulator output voltage 
   */
   __HAL_RCC_PWR_CLK_ENABLE();
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
   /** Initializes the CPU, AHB and APB busses clocks 
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 16;
-  RCC_OscInitStruct.PLL.PLLN = 336;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 4;
+  RCC_OscInitStruct.PLL.PLLN = 180;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 2;
   RCC_OscInitStruct.PLL.PLLR = 2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Activate the Over-Drive mode 
+  */
+  if (HAL_PWREx_EnableOverDrive() != HAL_OK)
   {
     Error_Handler();
   }
@@ -252,10 +262,10 @@ void SystemClock_Config(void)
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK)
   {
     Error_Handler();
   }
@@ -379,6 +389,17 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+int _write(int file, char *ptr, int len)
+{
+  /* Implement your write code here, this is used by puts and printf for example */
+  int i=0;
+  for(i = 0; i < len; i++)
+  {
+    ITM_SendChar((*ptr++));
+  }
+  return len;
+}
+
 void uart_send(uint8_t *data)
 {
 	uint16_t size = (uint16_t)strlen((const char *)data);
@@ -401,6 +422,9 @@ void TaskDisplayInit(void const * argument)
   uint16_t ADCValuebefore = 0;
   uint16_t ADCValue = 0;
 
+  HAL_ADC_Start_IT(&hadc1);
+
+
   for(;;)
   {
 
@@ -415,18 +439,19 @@ void TaskDisplayInit(void const * argument)
 	else Error_Handler();
 #endif
 
+	/*
+	 * Description: This part must detect the button press. To do so, it must debounce the button,
+	 * and and consider the ADC error.
+	 */
+
+	//This get the ADC value from the ADC Queue
 	event = osMessageGet(ADCQueue, 100);
 	if(event.status == osEventMessage)
 	{
 		ADCValue = event.value.v;
 	}
 
-	/*
-	 * Description: This part must detect the button press. To do so, it must debounce the button,
-	 * and and consider the ADC error.
-	 */
-
-	if( !((ADCValue < (ADCValuebefore + KEY_ERROR)) && (ADCValue > (ADCValuebefore - KEY_ERROR))) )
+	if( !((ADCValue > (ADCValuebefore + KEY_ERROR)) && (ADCValue < (ADCValuebefore - KEY_ERROR))) )
 	{
 
 		if ( (ADCValue > KEY_UP_LOWER) && (ADCValue < KEY_UP_UPPER) )
@@ -464,12 +489,12 @@ void TaskDisplayInit(void const * argument)
 			TM_HD44780_Clear();
 			TM_HD44780_Puts(0, 0, "SELECT");
 		}
+
+		ADCValuebefore = ADCValue;
 	}
+
 	HAL_ADC_Start(&hadc1);
-
-	ADCValuebefore = ADCValue;
-
-    osDelay(1);
+    osDelay(10);
   }
 }
 
@@ -477,11 +502,13 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
 	if(hadc->Instance == ADC1)
 	{
+
 		uint16_t ADCValue = HAL_ADC_GetValue(hadc);
 		if(osMessagePut (ADCQueue, ADCValue, 100) != osOK)
 		{
 		  Error_Handler();
 		}
+		printf("ADC = %d",ADCValue);
 	}
 
 }
